@@ -642,12 +642,12 @@ def show_step1():
                 if st.button("保存修改"):
                     st.session_state['edited_text'] = edited_text
                     st.session_state['is_editing'] = False
-                    st.experimental_rerun()
+                    st.rerun()
             with col2:
                 if st.button("取消修改"):
                     st.session_state['is_editing'] = False
                     st.session_state['edited_text'] = st.session_state['extracted_text']
-                    st.experimental_rerun()
+                    st.rerun()
         else:
             # 显示文章内容
             st.markdown(f"<div class='article-display'>{st.session_state['edited_text']}</div>", unsafe_allow_html=True)
@@ -657,11 +657,11 @@ def show_step1():
             with col1:
                 if st.button("编辑文章"):
                     st.session_state['is_editing'] = True
-                    st.experimental_rerun()
+                    st.rerun()
             with col2:
                 if st.button("确认内容并进入下一步"):
                     st.session_state['step'] = 2
-                    st.experimental_rerun()
+                    st.rerun()
 
 def show_step2():
     """显示第二步：内容分割"""
@@ -718,7 +718,7 @@ def show_step2():
             # 在开头添加"新增文章块"按钮
             if st.button("在开头添加新块 ⬆", key="insert_start"):
                 st.session_state['block_operations']['insert_index'] = 0
-                st.experimental_rerun()
+                st.rerun()
 
             # 处理插入操作
             if st.session_state['block_operations']['insert_index'] is not None:
@@ -726,7 +726,7 @@ def show_step2():
                 if 0 <= idx <= len(st.session_state['edited_chunks']):
                     st.session_state['edited_chunks'].insert(idx, "在这里输入新的内容...")
                     st.session_state['block_operations']['insert_index'] = None
-                    st.experimental_rerun()
+                    st.rerun()
 
             # 显示所有块
             for i, chunk in enumerate(st.session_state['edited_chunks']):
@@ -752,19 +752,19 @@ def show_step2():
                     if len(st.session_state['edited_chunks']) > 1:  # 保持至少一个块
                         if st.button("🗑️", key=f"delete_{i}", help="删除此块"):
                             st.session_state['edited_chunks'].pop(i)
-                            st.experimental_rerun()
+                            st.rerun()
 
                 # 在每个块之后添加"新增文章块"按钮
                 if st.button(f"在此处添加新块 ⬇", key=f"insert_{i}"):
                     st.session_state['block_operations']['insert_index'] = i + 1
-                    st.experimental_rerun()
+                    st.rerun()
 
                 st.markdown("---")
 
             # 在末尾添加"新增文章块"按钮
             if st.button("在末尾添加新块 ⬇", key="insert_end"):
                 st.session_state['block_operations']['insert_index'] = len(st.session_state['edited_chunks'])
-                st.experimental_rerun()
+                st.rerun()
 
         # 操作按钮
         col1, col2 = st.columns(2)
@@ -773,12 +773,12 @@ def show_step2():
                 st.session_state['step'] = 1
                 st.session_state['chunks'] = None
                 st.session_state['edited_chunks'] = []
-                st.experimental_rerun()
+                st.rerun()
         
         with col2:
             if st.button("确认分割并进入下一步"):
                 st.session_state['step'] = 3
-                st.experimental_rerun()
+                st.rerun()
 
 def show_step3():
     """显示第三步：内容提炼和PPT生成"""
@@ -799,25 +799,45 @@ def show_step3():
         base_url = st.text_input(
             "API基础URL",
             value=st.session_state.get('base_url', "https://api.gpt.ge/v1/"),
-            help="请输入API基础URL"
+            help="请输入API基础URL",
+            key="base_url_input"
         )
         api_key = st.text_input(
             "API密钥",
             type="password",
             value=st.session_state.get('api_key', ''),
-            help="请输入您的API密钥"
+            help="请输入您的API密钥",
+            key="api_key_input"
         )
+        
+        # 添加确认和重置按钮
         if api_key:
-            st.session_state['api_key'] = api_key
-        if base_url:
-            st.session_state['base_url'] = base_url
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if not st.session_state.get('api_key_confirmed', False):
+                    if st.button("确认API密钥", key="confirm_api_key"):
+                        st.session_state['api_key'] = api_key
+                        st.session_state['base_url'] = base_url
+                        st.session_state['api_key_confirmed'] = True
+                        st.rerun()
+            with col2:
+                if st.session_state.get('api_key_confirmed', False):
+                    if st.button("重置API密钥", key="reset_api_key"):
+                        st.session_state['api_key'] = ''
+                        st.session_state['api_key_confirmed'] = False
+                        st.rerun()
+            
+            if not st.session_state.get('api_key_confirmed', False):
+                st.info("请点击确认按钮以验证API密钥")
+            else:
+                st.success("API密钥已确认，可以开始内容提炼")
 
     # 初始化提炼结果存储
     if 'extracted_contents' not in st.session_state:
         st.session_state['extracted_contents'] = []
 
     # 内容提炼部分
-    if st.session_state.get('edited_chunks') and st.session_state.get('api_key'):
+    if st.session_state.get('edited_chunks') and st.session_state.get('api_key') and st.session_state.get('api_key_confirmed', False):
         if not st.session_state['extracted_contents']:
             if st.button("开始内容提炼"):
                 progress_bar = st.progress(0)
@@ -847,7 +867,7 @@ def show_step3():
                 st.session_state['extracted_contents'] = extracted_contents
                 status_text.empty()
                 progress_bar.empty()
-                st.experimental_rerun()
+                st.rerun()
 
         # 显示提炼结果
         if st.session_state['extracted_contents']:
@@ -907,7 +927,7 @@ def show_step3():
         if st.button("返回上一步"):
             st.session_state['step'] = 2
             st.session_state['extracted_contents'] = []
-            st.experimental_rerun()
+            st.rerun()
     
     with col2:
         if st.button("重新开始"):
@@ -919,7 +939,7 @@ def show_step3():
             st.session_state['chunks'] = None
             st.session_state['edited_chunks'] = []
             st.session_state['extracted_contents'] = []
-            st.experimental_rerun()
+            st.rerun()
 
 if __name__ == "__main__":
     main() 
