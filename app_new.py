@@ -542,8 +542,7 @@ def create_ppt(extracted_contents):
         return tmp.name
 
 def main():
-    st.title("智能PPT生成器")
-    
+    """主函数"""
     # 初始化session state
     if 'step' not in st.session_state:
         st.session_state['step'] = 1
@@ -557,6 +556,15 @@ def main():
         st.session_state['chunks'] = None
     if 'edited_chunks' not in st.session_state:
         st.session_state['edited_chunks'] = []
+    if 'extracted_contents' not in st.session_state:
+        st.session_state['extracted_contents'] = []
+    if 'api_key_confirmed' not in st.session_state:
+        st.session_state['api_key_confirmed'] = False
+    if 'block_operations' not in st.session_state:
+        st.session_state['block_operations'] = {'insert_index': None}
+
+    # 设置页面标题和样式
+    st.title("智能PPT生成器")
     
     # 显示当前步骤
     st.markdown(f"### 当前步骤：{st.session_state['step']}/3")
@@ -683,12 +691,6 @@ def show_step2():
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 初始化block_operations（如果不存在）
-    if 'block_operations' not in st.session_state:
-        st.session_state['block_operations'] = {
-            'insert_index': None
-        }
-
     # 分割参数设置
     num_chunks = st.slider(
         "分割块数",
@@ -794,6 +796,14 @@ def show_step3():
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 检查是否有文本块需要处理
+    if not st.session_state.get('edited_chunks'):
+        st.warning("没有找到需要处理的文本块，请返回上一步添加内容。")
+        if st.button("返回上一步"):
+            st.session_state['step'] = 2
+            st.rerun()
+        return
+
     # API设置部分
     with st.expander("API设置", expanded=True):
         base_url = st.text_input(
@@ -832,13 +842,9 @@ def show_step3():
             else:
                 st.success("API密钥已确认，可以开始内容提炼")
 
-    # 初始化提炼结果存储
-    if 'extracted_contents' not in st.session_state:
-        st.session_state['extracted_contents'] = []
-
     # 内容提炼部分
-    if st.session_state.get('edited_chunks') and st.session_state.get('api_key') and st.session_state.get('api_key_confirmed', False):
-        if not st.session_state['extracted_contents']:
+    if st.session_state.get('api_key') and st.session_state.get('api_key_confirmed', False):
+        if not st.session_state.get('extracted_contents'):
             if st.button("开始内容提炼"):
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -851,26 +857,33 @@ def show_step3():
                     status_text.text(f"正在处理第 {i+1}/{total_chunks} 个文本块...")
                     progress_bar.progress((i + 1) / total_chunks)
 
-                    content, title, is_points = extract_content(
-                        chunk,
-                        st.session_state['api_key'],
-                        st.session_state['base_url']
-                    )
-                    
-                    if content and title:
-                        extracted_contents.append({
-                            'title': title,
-                            'content': content,
-                            'original': chunk
-                        })
+                    try:
+                        content, title, is_points = extract_content(
+                            chunk,
+                            st.session_state['api_key'],
+                            st.session_state['base_url']
+                        )
+                        
+                        if content and title:
+                            extracted_contents.append({
+                                'title': title,
+                                'content': content,
+                                'original': chunk
+                            })
+                    except Exception as e:
+                        st.error(f"处理文本块时发生错误：{str(e)}")
+                        break
 
-                st.session_state['extracted_contents'] = extracted_contents
-                status_text.empty()
-                progress_bar.empty()
-                st.rerun()
+                if extracted_contents:
+                    st.session_state['extracted_contents'] = extracted_contents
+                    status_text.empty()
+                    progress_bar.empty()
+                    st.rerun()
+                else:
+                    st.error("内容提炼失败，请检查API密钥是否正确或重试")
 
         # 显示提炼结果
-        if st.session_state['extracted_contents']:
+        if st.session_state.get('extracted_contents'):
             st.write("### 内容提炼预览")
             
             for i, item in enumerate(st.session_state['extracted_contents']):
@@ -939,6 +952,7 @@ def show_step3():
             st.session_state['chunks'] = None
             st.session_state['edited_chunks'] = []
             st.session_state['extracted_contents'] = []
+            st.session_state['api_key_confirmed'] = False
             st.rerun()
 
 if __name__ == "__main__":
